@@ -70,6 +70,11 @@ header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; b
 .chip .n { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums }
 .chip[aria-pressed="true"] .n { color: var(--bg); opacity: .7 }
 .sep { flex: 0 0 1px; background: var(--line); margin-inline: 2px }
+.leagues { padding-top: 0 }
+.leagues .chip { font-size: .8rem; padding: 4px 10px; background: var(--surface-2) }
+.leagues .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
+.leagues .chip[aria-pressed="true"] .n { color: var(--accent-ink) }
+.leagues .lbl { flex: 0 0 auto; align-self: center; font: 600 .72rem/1 var(--f-body); text-transform: uppercase; letter-spacing: .07em; color: var(--muted) }
 .chip.more { border-style: dashed }
 .chip.more[aria-expanded="true"] { border-style: solid; border-color: var(--accent); color: var(--accent) }
 .chip.zero { opacity: .5 }
@@ -145,6 +150,7 @@ footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 7
     </div>
     <nav class="scroller" id="days" aria-label="Giorni"></nav>
     <div class="scroller" id="sports" role="group" aria-label="Sport preferiti"></div>
+    <div class="scroller leagues" id="leagues" role="group" aria-label="Campionati" hidden></div>
     <div class="panel" id="panel" hidden>
       <div class="panel-head">
         <strong id="panelTitle">Tutti gli sport</strong>
@@ -203,15 +209,16 @@ footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 7
 
   let DATA = null;
   const st = { day: null, sport: "all", q: "", now: false, provs: new Set(), showPast: false,
-               fav: [...DEFAULT_FAV], panel: false, editing: false };
+               fav: [...DEFAULT_FAV], panel: false, editing: false, leagues: new Set() };
   try {
     const saved = JSON.parse(localStorage.getItem("gs-prefs") || "{}");
     if (typeof saved.now === "boolean") st.now = saved.now;
     if (Array.isArray(saved.provs)) st.provs = new Set(saved.provs);
     if (typeof saved.sport === "string" && saved.sport !== "_altri") st.sport = saved.sport;
     if (Array.isArray(saved.fav)) st.fav = saved.fav.filter(s => typeof s === "string");
+    if (Array.isArray(saved.leagues)) st.leagues = new Set(saved.leagues);
   } catch (e) {}
-  const save = () => { try { localStorage.setItem("gs-prefs", JSON.stringify({ now: st.now, provs: [...st.provs], sport: st.sport, fav: st.fav })); } catch (e) {} };
+  const save = () => { try { localStorage.setItem("gs-prefs", JSON.stringify({ now: st.now, provs: [...st.provs], sport: st.sport, fav: st.fav, leagues: [...st.leagues] })); } catch (e) {} };
 
   const endOf = e => e.end ? new Date(e.end) : new Date(new Date(e.start).getTime() + (DUR[e.sport] || 120) * 60000);
   const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
@@ -226,6 +233,7 @@ footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 7
     if (st.now && !e.now) return false;
     if (st.provs.size && !e.providers.some(p => st.provs.has(p))) return false;
     if (!opts.ignoreSport && st.sport !== "all" && e.sport !== st.sport) return false;
+    if (!opts.ignoreLeague && st.sport === "Calcio" && e.sport === "Calcio" && st.leagues.size && !st.leagues.has(e.league || "Altro")) return false;
     if (st.q) {
       const hay = norm([e.title, e.comp, e.sport, e.channels.join(" "), (e.us || []).join(" "), e.desc].join(" "));
       if (!norm(st.q).split(/\s+/).filter(Boolean).every(w => hay.includes(w))) return false;
@@ -306,7 +314,8 @@ footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 7
     if (!st.showPast) list = list.filter(e => endOf(e) > now);
     const nowN = list.filter(e => e.now).length;
     const liveN = list.filter(e => new Date(e.start) <= now && now < endOf(e)).length;
-    const scope = st.q ? `Risultati per “${esc(st.q)}” in tutta la settimana` : dayLabel(st.day).long;
+    let scope = st.q ? `Risultati per “${esc(st.q)}” in tutta la settimana` : dayLabel(st.day).long;
+    if (st.sport === "Calcio" && st.leagues.size) scope += ` · ${esc([...st.leagues].join(", "))}`;
     $("summary").innerHTML = `<span><strong>${list.length}</strong> eventi · ${scope}${liveN ? ` · <strong style="color:var(--live)">${liveN} in onda</strong>` : ""} · ${nowN} su NOW</span>` +
       (pastN ? `<button class="linkbtn" type="button" id="pastBtn">${st.showPast ? "Nascondi" : "Mostra"} conclusi (${pastN})</button>` : "");
     if (!list.length) {
@@ -322,13 +331,33 @@ footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 7
     }
   }
 
-  function render() { renderDays(); renderSports(); renderList(); }
+  function renderLeagues() {
+    const box = $("leagues");
+    box.hidden = st.sport !== "Calcio";
+    if (box.hidden) return;
+    const pool = DATA.events.filter(e => e.sport === "Calcio" && (st.q || e.date === st.day) && matches(e, { ignoreLeague: true }));
+    const cnt = {};
+    pool.forEach(e => { const l = e.league || "Altro"; cnt[l] = (cnt[l] || 0) + 1; });
+    const order = DATA.leagues || Object.keys(cnt);
+    // campionati del giorno, più quelli scelti anche se oggi non giocano (così si possono togliere)
+    const shown = order.filter(l => cnt[l] || st.leagues.has(l));
+    box.innerHTML = '<span class="lbl">Campionati</span>' +
+      `<button class="chip" type="button" data-league="" aria-pressed="${st.leagues.size === 0}">Tutti<span class="n">${pool.length}</span></button>` +
+      shown.map(l => `<button class="chip" type="button" data-league="${esc(l)}" aria-pressed="${st.leagues.has(l)}">${esc(l)}<span class="n">${cnt[l] || 0}</span></button>`).join("");
+  }
+
+  function render() { renderDays(); renderSports(); renderLeagues(); renderList(); }
 
   document.addEventListener("click", ev => {
     const t = ev.target.closest("button, article.ev");
     if (!t) return;
     if (t.dataset.day) { st.day = t.dataset.day; st.q = ""; $("q").value = ""; render(); window.scrollTo({ top: 0 }); }
     else if (t.dataset.sport) { st.sport = t.dataset.sport; if (t.closest("#panel")) st.panel = false; save(); render(); }
+    else if (t.dataset.league !== undefined) {
+      const l = t.dataset.league;
+      if (!l) st.leagues.clear(); else st.leagues.has(l) ? st.leagues.delete(l) : st.leagues.add(l);
+      save(); render();
+    }
     else if (t.id === "moreBtn") { st.panel = !st.panel; st.editing = false; renderSports(); }
     else if (t.id === "editFav") { st.editing = !st.editing; renderSports(); }
     else if (t.dataset.fav) {
