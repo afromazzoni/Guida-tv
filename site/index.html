@@ -122,6 +122,9 @@ main { padding-block: 14px 40px }
 .ev h3 { margin: 3px 0 6px; font: 600 1.04rem/1.3 var(--f-body); overflow-wrap: anywhere }
 .chans { display: flex; flex-wrap: wrap; gap: 5px }
 .ch { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font-size: .8rem; white-space: nowrap }
+a.ch { color: inherit; text-decoration: none }
+a.ch::after { content: "↗"; font-size: .7rem; color: var(--muted) }
+a.ch:hover, a.ch:focus-visible { border-color: var(--accent); color: var(--accent) }
 .ch.nowtag { background: var(--p-sky); border-color: var(--p-sky); color: var(--surface); font-weight: 700; letter-spacing: .04em }
 .extra { margin-top: 6px; font-size: .8rem; color: var(--muted) }
 .extra a { color: var(--accent) }
@@ -285,18 +288,43 @@ footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 7
     $("legend").innerHTML = Object.keys(PROV).map(k => `<span><span class="dot ${k}"></span>${PROV[k]}</span>`).join("");
   }
 
+  // dove si guarda: link al servizio per ciascun canale
+  function watchURL(c, p) {
+    if (p === "sky") return "https://www.nowtv.it/watch/home";
+    if (p === "dazn") return "https://www.dazn.com/it-IT/home";
+    if (p === "prime") return "https://www.primevideo.com/";
+    if (p === "hbo") return "https://www.hbomax.com/it/it/sports";
+    if (p === "disney") return "https://www.disneyplus.com/it-it";
+    if (p === "netflix") return "https://www.netflix.com/it/";
+    if (/nba league pass/i.test(c)) return "https://www.nba.com/watch";
+    if (/mlb\.tv/i.test(c)) return "https://www.mlb.com/tv";
+    if (/^rai sport/i.test(c)) return "https://www.raiplay.it/dirette/raisport";
+    const rai = c.match(/^rai ?(\d)$/i);
+    if (rai) return `https://www.raiplay.it/dirette/rai${rai[1]}`;
+    if (/^(italia 1|canale 5|rete 4|20|twentyseven)/i.test(c)) return "https://mediasetinfinity.mediaset.it/";
+    if (/^tv8$/i.test(c)) return "https://www.tv8.it/streaming";
+    if (/^cielo$/i.test(c)) return "https://www.cielotv.it/streaming";
+    if (/^sportitalia/i.test(c)) return "https://www.sportitalia.it/";
+    return "";
+  }
+
   function evHTML(e, now) {
     const s = new Date(e.start), en = endOf(e);
     const live = s <= now && now < en, past = en <= now;
     const endTxt = [e.onair ? `diretta dalle ${e.onair.slice(11, 16)}` : "", e.end ? `fino ${e.end.slice(11, 16)}` : ""].filter(Boolean).join("<br>");
     const chans = e.channels.map((c, i) => {
       const p = e.chp[i] || "other";
-      const tip = /^Sky Sport 25\d$/.test(c) ? ' title="Su NOW come evento singolo nella sezione Sport"' : "";
-      return `<span class="ch"${tip}><span class="dot ${p}"></span>${esc(c)}</span>`;
+      let url = watchURL(c, p);
+      if (e.link && (p === "hbo" || /mlb\.tv/i.test(c))) url = e.link;  // pagina dell'evento
+      const tip = /^Sky Sport 25\d$/.test(c) ? "Su NOW come evento singolo nella sezione Sport" : url ? `Apri ${c}` : "";
+      const inner = `<span class="dot ${p}"></span>${esc(c)}`;
+      return url ? `<a class="ch" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(tip)}">${inner}</a>`
+                 : `<span class="ch"${tip ? ` title="${esc(tip)}"` : ""}>${inner}</span>`;
     }).join("") + (e.now ? '<span class="ch nowtag">NOW</span>' : "");
     const extra = [];
     if (e.us && e.us.length) extra.push(`USA: ${esc(e.us.slice(0, 4).join(", "))}`);
-    if (e.link) extra.push(`<a href="${esc(e.link)}" target="_blank" rel="noopener">Apri su HBO Max</a>`);
+    if (e.link && /hbomax/.test(e.link)) extra.push(`<a href="${esc(e.link)}" target="_blank" rel="noopener">Apri l'evento su HBO Max</a>`);
+    if (e.link && /mlb\.com/.test(e.link)) extra.push(`<a href="${esc(e.link)}" target="_blank" rel="noopener">Apri la partita su MLB.tv</a>`);
     return `<article class="ev${live ? " live" : ""}${past ? " past" : ""}"${e.desc ? ` data-desc="1"` : ""} data-id="${e.id}">
       <div class="t">${e.time}${endTxt ? `<small>${endTxt}</small>` : ""}${live ? '<span class="badge-live">In onda</span>' : ""}</div>
       <div style="min-width:0">
