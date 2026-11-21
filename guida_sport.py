@@ -461,18 +461,40 @@ def fetch_mlb() -> list[dict]:
 DAZN_SKIP_COMP = re.compile(r"(?i)radio tv serie a|debrief|magazine")
 
 
+DAZN_CACHE = ROOT / "data" / "dazn_cache.json"
+
+
 def fetch_dazn() -> list[dict]:
-    out, seen = [], set()
+    """DAZN a volte risponde 403 ai server di GitHub: si riprova, poi si usa l'ultimo palinsesto riuscito."""
+    import time
+    cache = {}
+    if DAZN_CACHE.exists():
+        try:
+            cache = json.loads(DAZN_CACHE.read_text(encoding="utf-8"))
+        except Exception:
+            cache = {}
+    out, seen, stale = [], set(), []
     for d in range(DAYS):
         day = TODAY + timedelta(days=d)
         off = int(datetime(day.year, day.month, day.day, 12, tzinfo=ROME).utcoffset().total_seconds() // 60)
-        try:
-            j = get(f"https://epg.discovery.indazn.com/eu/v5/Epg?date={day}&country=it&languageCode=it"
-                    f"&openBrowse=true&timeZoneOffset={off}").json()
-        except Exception as ex:
-            WARN.append(f"DAZN {day}: {ex}")
-            continue
-        for t in j.get("Tiles", []):
+        tiles = None
+        for attempt in range(3):
+            try:
+                j = get(f"https://epg.discovery.indazn.com/eu/v5/Epg?date={day}&country=it&languageCode=it"
+                        f"&openBrowse=true&timeZoneOffset={off}").json()
+                tiles = j.get("Tiles", [])
+                cache[day.isoformat()] = tiles
+                break
+            except Exception as ex:
+                err = ex
+                time.sleep(3 * (attempt + 1))
+        if tiles is None:
+            tiles = cache.get(day.isoformat())
+            if tiles is None:
+                WARN.append(f"DAZN {day}: {err} (nessun dato in cache)")
+                continue
+            stale.append(day.isoformat())
+        for t in tiles:
             title = (t.get("Title") or "").strip()
             comp = ((t.get("Competition") or {}).get("Title") or "").strip()
             sport = ((t.get("Sport") or {}).get("Title") or "").strip()
@@ -491,7 +513,14 @@ def fetch_dazn() -> list[dict]:
                 comp = "NFL"
             sp = sport_from(sport, comp, title)
             out.append(event(start, sp, comp, title, ["DAZN"], "dazn"))
-    log(f"dazn: {len(out)}")
+    if stale:
+        WARN.append(f"DAZN non raggiungibile, usata la cache per: {', '.join(stale)}")
+    # la cache tiene solo i giorni da oggi in avanti, ridotta ai campi usati
+    keep = {"Title", "Start", "EventId", "Competition", "Sport"}
+    cache = {k: [{f: t.get(f) for f in keep} for t in v] for k, v in cache.items() if k >= TODAY.isoformat()}
+    DAZN_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    DAZN_CACHE.write_text(json.dumps(cache, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    log(f"dazn: {len(out)}" + (f" (cache per {len(stale)} giorni)" if stale else ""))
     return out
 
 
