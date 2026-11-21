@@ -686,6 +686,12 @@ def league_of(comp: str) -> str:
     return "Altro"
 
 
+# durata massima credibile (minuti) di una diretta: oltre, l'orario di fine viene scartato
+MAX_DUR = {"Calcio": 180, "Calcio dal mondo": 180, "Basket": 170, "Basket italiano": 170, "NBA": 200, "NHL": 210,
+           "NFL": 260, "College Football": 270, "MLB": 270, "Volley": 210, "Rugby": 150, "Hockey": 180,
+           "Pallanuoto": 120, "Pallamano": 120, "MotoGP": 150, "F1": 210}
+
+
 def refine(e: dict):
     comp = e["comp"]
     if e["sport"] == "Calcio":
@@ -842,6 +848,10 @@ def build() -> dict:
     # Eurosport è dentro HBO Max
     for e in events:
         refine(e)
+        # i canali Sky (soprattutto 251-259) restano sull'evento per ore: una fine troppo lontana non è la fine della partita
+        lim = MAX_DUR.get(e["sport"])
+        if lim and e.get("end") and _dt(e, "end") - _dt(e) > timedelta(minutes=lim):
+            e.pop("end")
         if any("eurosport" in c.lower() for c in e["channels"]) and "HBO Max" not in e["channels"]:
             e["channels"].append("HBO Max")
         e["chp"] = [provider(c) if c != "Nessun canale in Italia" else "none" for c in e["channels"]]
