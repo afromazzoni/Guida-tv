@@ -265,7 +265,17 @@ def merge_into(dst: dict, src: dict, prefer_src_title=False):
     if not dst["comp"] and src["comp"]:
         dst["comp"] = src["comp"]
     if src.get("end") and not dst.get("end"):
-        dst["end"] = src["end"]
+        # blocchi lunghi (es. DAZN 1 su Sky per tutta la sera) non dicono quando finisce la partita
+        if not (dst["sport"] in TEAM_SPORTS and _dt(src, "end") - _dt(dst) > timedelta(hours=3, minutes=30)):
+            dst["end"] = src["end"]
+    # diretta Sky che parte prima dell'evento (griglia, pre-partita): "diretta dalle ..."
+    if "sky" in src["src"] and src["start"] < dst["start"] and (_dt(dst) - _dt(src)) <= timedelta(minutes=90):
+        if not dst.get("onair") or src["start"] < dst["onair"]:
+            dst["onair"] = src["start"]
+    # titolo più completo per gli sport individuali ("GP Portogallo" -> "GP Portogallo: Sprint Race")
+    if dst["sport"] not in TEAM_SPORTS and len(src["title"]) > len(dst["title"]) \
+            and tokens(dst["title"]) <= tokens(src["title"]) and not prefer_src_title:
+        dst["title"] = src["title"]
     for c in src["channels"]:
         if c not in dst["channels"]:
             dst["channels"].append(c)
@@ -369,6 +379,8 @@ def fetch_sky() -> list[dict]:
                 continue
             if re.match(r"(?i)un approfondimento", syn) or re.search(r"(?i)\.\s*-\s*(pre|post) ?partita\s*$", syn):
                 continue
+            if re.search(r"(?i)prima della gara|prima del via|dopo la gara|interviste prima", syn):  # pre/post gara
+                continue
             # giocatori dalla sinossi quando il titolo non li ha ("Singolare: Finale" -> "... · Sinner/Alcaraz")
             pm = re.search(r"\.\s*([A-Z][\w'\-]+(?: [A-Z][\w'\-]+)?/[A-Z][\w'\-]+(?: [A-Z][\w'\-]+)?)\s*(?:\(|$)", syn)
             if pm and " - " not in title and pm.group(1).split("/")[0] not in title:
@@ -383,6 +395,9 @@ def fetch_sky() -> list[dict]:
             if 251 <= (num or 0) <= 259:
                 name = f"Sky Sport {num}"
             sub = ((e.get("content") or {}).get("subgenre") or {}).get("name", "")
+            # rubriche motori col solo nome del luogo ("Portogallo", "Las Vegas"): non sono sessioni
+            if sub == "Motori" and ":" not in title and " - " not in title and len(title.split()) <= 2:
+                continue
             extra = f"{name} {syn[:250]}"
             if num == 207:
                 extra += " F1"
