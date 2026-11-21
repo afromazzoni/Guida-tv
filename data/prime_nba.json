@@ -1,0 +1,22 @@
+{
+  "_nota": "Partite NBA su Prime Video Italia (prima serata), stagione 2026-27. Fonte: annuncio Prime Video del 23/10/2026 riportato da digital-news.it, napolimagazine.com, nbapassion.com. Aggiungere qui le nuove partite annunciate.",
+  "games": [
+    {"date": "2026-10-25", "time": "22:00", "away": "Los Angeles Lakers", "home": "Utah Jazz"},
+    {"date": "2026-11-01", "time": "21:30", "away": "Boston Celtics", "home": "Orlando Magic"},
+    {"date": "2026-11-08", "time": "21:30", "away": "Philadelphia 76ers", "home": "Chicago Bulls"},
+    {"date": "2026-11-15", "time": "19:00", "away": "Indiana Pacers", "home": "Philadelphia 76ers"},
+    {"date": "2026-11-22", "time": "21:30", "away": "Detroit Pistons", "home": "Atlanta Hawks"},
+    {"date": "2026-12-13", "time": "21:30", "away": "Toronto Raptors", "home": "Oklahoma City Thunder"},
+    {"date": "2026-12-27", "time": "21:30", "away": "Oklahoma City Thunder", "home": "Houston Rockets"},
+    {"date": "2027-01-10", "time": "21:00", "away": "San Antonio Spurs", "home": "Atlanta Hawks"},
+    {"date": "2027-01-24", "time": "21:30", "away": "Portland Trail Blazers", "home": "San Antonio Spurs"},
+    {"date": "2027-01-30", "time": "18:30", "away": "Philadelphia 76ers", "home": "Miami Heat"},
+    {"date": "2027-02-28", "time": "19:00", "away": "Denver Nuggets", "home": "San Antonio Spurs"},
+    {"date": "2027-03-07", "time": "19:00", "away": "Philadelphia 76ers", "home": "Boston Celtics"},
+    {"date": "2027-03-14", "time": "17:00", "away": "Boston Celtics", "home": "New York Knicks"},
+    {"date": "2027-03-14", "time": "19:30", "away": "San Antonio Spurs", "home": "Oklahoma City Thunder"},
+    {"date": "2027-03-20", "time": "18:00", "away": "Washington Wizards", "home": "New York Knicks"},
+    {"date": "2027-03-28", "time": "21:00", "away": "Los Angeles Lakers", "home": "Houston Rockets"},
+    {"date": "2027-04-04", "time": "19:00", "away": "Atlanta Hawks", "home": "Philadelphia 76ers"}
+  ]
+}

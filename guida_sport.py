@@ -417,8 +417,21 @@ ESPN_LEAGUES = [
 ]
 
 
+PRIME_NBA_FILE = ROOT / "data" / "prime_nba.json"
+
+
+def load_prime_nba() -> set[tuple[str, str, str]]:
+    try:
+        games = json.loads(PRIME_NBA_FILE.read_text(encoding="utf-8"))["games"]
+        return {(g["date"], g["away"].lower(), g["home"].lower()) for g in games}
+    except Exception as ex:
+        WARN.append(f"prime_nba.json: {ex}")
+        return set()
+
+
 def fetch_espn() -> list[dict]:
     out = []
+    prime_nba = load_prime_nba()
     for sport, league, label, comp_default, extra in ESPN_LEAGUES:
         raw, seen = [], set()
         for d in range(-1, DAYS + 1):  # giorni USA: la sera USA è notte in Italia
@@ -452,6 +465,12 @@ def fetch_espn() -> list[dict]:
                 chans = ["DAZN (NFL Game Pass)"]
             elif label == "NBA":
                 chans = ["NBA League Pass"]
+                ht_, at_ = teams["home"].get("displayName", ""), teams["away"].get("displayName", "")
+                local_day = start.astimezone(ROME).date().isoformat()
+                if (local_day, at_.lower(), ht_.lower()) in prime_nba:
+                    chans.insert(0, "Prime Video")
+                elif any(x.lower() == "prime video" for x in us):  # partita Prime negli USA: diritti Amazon globali
+                    chans.insert(0, "Prime Video (da verificare)")
             elif label == "NHL":
                 chans = ["Disney+"] if espn else []
             else:  # College football: solo le partite ESPN/ABC arrivano su Disney+
