@@ -141,7 +141,34 @@ GENERIC = set("""gara gare prove prova libere libera qualifiche qualifica sprint
 quarti singolare singolari doppio doppi singles doubles manche partita match live diretta coppa mondo campionato
 giornata serie league turno round sessione warm studio femminile maschile prima seconda terza quarta 1a 2a 3a
 torneo world tour grand prix trofeo stagione 2026 2027 edizione speciale evento evento: contro della delle dello
-degli","the and""".split())
+degli","the and
+united city town county rovers rangers wanderers sporting real athletic atletico athletico club calcio olympique
+racing dynamo dinamo academy women reserves sport sports""".split())
+
+
+def sides(title: str) -> list[tuple[set, set]]:
+    """Possibili divisioni "squadra A / squadra B" di un titolo (Virgilio scrive "Chelsea-Leeds United")."""
+    t = title.split(" · ")[0]
+    m = re.split(r"\s+(?:-|–|vs\.?|v|@)\s+", t, maxsplit=1)
+    if len(m) == 2:
+        return [(tokens(m[0]), tokens(m[1]))]
+    out = []
+    for i, ch in enumerate(t):
+        if ch == "-" and 0 < i < len(t) - 1:
+            out.append((tokens(t[:i]), tokens(t[i + 1:])))
+    return out
+
+
+def same_fixture(a: str, b: str) -> int | None:
+    """Quante squadre coincidono (0, 1, 2) se entrambi i titoli sono "A - B"; None se uno dei due non lo è."""
+    sa, sb = sides(a), sides(b)
+    if not sa or not sb:
+        return None
+    best = 0
+    for a1, a2 in sa:
+        for b1, b2 in sb:
+            best = max(best, bool(a1 & b1) + bool(a2 & b2), bool(a1 & b2) + bool(a2 & b1))
+    return best
 
 
 def tokens(text: str) -> set[str]:
@@ -212,6 +239,15 @@ def find_match(ev: dict, pool: list[dict], tol=20) -> dict | None:
         same_sport = ev["sport"] == p["sport"] or bool({ev["sport"], p["sport"]} & VAGUE)
         pk = {chan_key(c) for c in p["channels"]}
         chan = bool(pk & ek) or ("sky" in pk and any(provider(c) == "sky" for c in ev["channels"]))
+        if ev["sport"] in TEAM_SPORTS or p["sport"] in TEAM_SPORTS:
+            fx = same_fixture(ev["title"], p["title"])
+            same_comp = bool(tokens(ev["comp"]) & tokens(p["comp"])) or ev["comp"].lower() == p["comp"].lower() != ""
+            if fx == 0:  # partite diverse: non basta una parola in comune
+                continue
+            if fx == 1 and not (chan or same_comp):  # nomi tradotti (Brema/Bremen): serve anche canale o campionato
+                continue
+            if fx is None and tok < 2:
+                continue
         if tok and (same_sport or tok >= 2):
             score = tok * 2 + chan + close
         elif close and same_sport and ev["sport"] not in TEAM_SPORTS and chan:
@@ -297,7 +333,7 @@ def fetch_virgilio() -> list[dict]:
 
 # ----------------------------------------------------------------------------- Sky EPG
 SKY_NUMBERS = set(range(201, 210)) | {211, 212, 213, 214, 215, 216, 217, 227} | set(range(251, 260))
-SKY_SHOWS = re.compile(r"(?i)paddock|studio|pre ?partita|post ?partita|debriefing|notebook|zona rossa|insider|"
+SKY_SHOWS = re.compile(r"(?i)paddock|studio|pre[ -]?partita|post[ -]?partita|debriefing|notebook|zona rossa|insider|"
                        r"\bgrid\b|race anatomy|calcio show|calcio club|\bclub\b|\btg\b|highlights|magazine|"
                        r"\bshow\b|speciale|conferenza|anteprima|pit ?lane|pre ?gara|post ?gara|prima di|"
                        r"sky sport 24|reloaded|best of|i gol|tutti i gol|pre ?game|post ?game|room|talk|ep\.\s*\d|"
@@ -505,8 +541,9 @@ def fetch_dazn() -> list[dict]:
                 continue
             if "," in title and "@" in title:  # multi-partita (MultiView): già presenti le singole
                 continue
-            start = datetime.fromisoformat(t["Start"].replace("Z", "+00:00"))
-            if not in_window(start):
+            # Start = inizio della diretta (col pre-partita), EventStartTime = calcio d'inizio
+            start = datetime.fromisoformat((t.get("EventStartTime") or t["Start"]).replace("Z", "+00:00"))
+            if not in_window(start) or re.search(r"(?i)powered by", title):
                 continue
             title = re.sub(r"\s+vs\.?\s+", " - ", title)
             if comp.lower() in ("nfl game pass",):
@@ -516,7 +553,7 @@ def fetch_dazn() -> list[dict]:
     if stale:
         WARN.append(f"DAZN non raggiungibile, usata la cache per: {', '.join(stale)}")
     # la cache tiene solo i giorni da oggi in avanti, ridotta ai campi usati
-    keep = {"Title", "Start", "EventId", "Competition", "Sport"}
+    keep = {"Title", "Start", "EventStartTime", "EventId", "Competition", "Sport"}
     cache = {k: [{f: t.get(f) for f in keep} for t in v] for k, v in cache.items() if k >= TODAY.isoformat()}
     DAZN_CACHE.parent.mkdir(parents=True, exist_ok=True)
     DAZN_CACHE.write_text(json.dumps(cache, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -593,11 +630,34 @@ BASKET_ITA = re.compile(r"(?i)^serie a\b|serie a2|^a2\b|\blba\b|lega basket|unip
                         r"coppa italia|supercoppa|italbasket|nazionale")
 
 
+LEAGUES = [  # (nome mostrato, regex sulla competizione) — l'ordine è quello dei pulsanti nella pagina
+    ("Serie A", r"^serie a\b"), ("Serie B", r"^serie b"), ("Serie C", r"^serie c"),
+    ("Coppa Italia", r"coppa italia|supercoppa italiana"),
+    ("Champions League", r"champions league"), ("Europa League", r"europa league|europa e conference"),
+    ("Conference League", r"conference league"),
+    ("Premier League", r"^premier league$"), ("Championship", r"championship"),
+    ("Coppe inglesi", r"fa cup|efl cup|carabao"),
+    ("LaLiga", r"^la ?liga|^liga$|copa del rey|supercopa"), ("Bundesliga", r"^bundesliga$|dfb"),
+    ("Ligue 1", r"^ligue 1|coupe de france"),
+    ("Nazionali", r"nations league|qualificazioni|qualif|mondiali|europei|amichevol|nazional|supercoppa europea|super cup"),
+]
+
+
+def league_of(comp: str) -> str:
+    c = re.sub(r"(?i)^(uefa|diretta gol)\s+", "", comp.strip()).lower()
+    for name, rx in LEAGUES:
+        if re.search(rx, c):
+            return name
+    return "Altro"
+
+
 def refine(e: dict):
     comp = e["comp"]
     if e["sport"] == "Calcio":
         if comp and (FOOTBALL_NOT.search(comp) or not FOOTBALL_MAJOR.search(comp)):
             e["sport"] = "Calcio dal mondo"
+        else:
+            e["league"] = league_of(comp)
     elif e["sport"] == "Basket":
         ita = BASKET_ITA.search(comp) or re.search(r"\bItalia\b", e["title"])
         if not comp and "sky" in e["src"]:  # sul canale Sky Sport Basket senza competizione: LBA o Eurolega
@@ -757,6 +817,7 @@ def build() -> dict:
     events.sort(key=lambda x: (x["start"], x["sport"], x["title"]))
     days = [(TODAY + timedelta(days=i)).isoformat() for i in range(DAYS)]
     return {"generated": datetime.now(ROME).isoformat(timespec="minutes"), "days": days,
+            "leagues": [n for n, _ in LEAGUES] + ["Altro"],
             "counts": {k: len(v) for k, v in sources.items()}, "warnings": WARN, "events": events}
 
 
