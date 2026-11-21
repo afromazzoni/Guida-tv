@@ -1,0 +1,54 @@
+name: Aggiorna Guida Sport
+
+on:
+  schedule:
+    - cron: "0 11 * * *"   # 12:00 ora italiana d'inverno (13:00 con l'ora legale)
+  workflow_dispatch:        # avvio manuale dalla scheda Actions
+  push:
+    branches: [main]
+    paths: ["guida_sport.py", "site/guida-sport.html", ".github/workflows/aggiorna.yml"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: guida-sport
+  cancel-in-progress: false
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Dipendenze
+        run: pip install -r requirements.txt
+
+      - name: Scarica il palinsesto
+        run: python guida_sport.py
+
+      - name: Salva dati e cache HBO
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/events.json site/index.html data/hbo_cache.json
+          git diff --cached --quiet || git commit -m "Palinsesto $(date -u +%Y-%m-%d)"
+          git push
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

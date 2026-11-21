@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+data/aggiorna.log
+.claude/settings.local.json
