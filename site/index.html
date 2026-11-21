@@ -288,7 +288,7 @@ footer ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; max-width: 7
   function evHTML(e, now) {
     const s = new Date(e.start), en = endOf(e);
     const live = s <= now && now < en, past = en <= now;
-    const endTxt = e.end ? `fino ${e.end.slice(11, 16)}` : "";
+    const endTxt = [e.onair ? `diretta dalle ${e.onair.slice(11, 16)}` : "", e.end ? `fino ${e.end.slice(11, 16)}` : ""].filter(Boolean).join("<br>");
     const chans = e.channels.map((c, i) => {
       const p = e.chp[i] || "other";
       const tip = /^Sky Sport 25\d$/.test(c) ? ' title="Su NOW come evento singolo nella sezione Sport"' : "";
