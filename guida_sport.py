@@ -522,6 +522,7 @@ def fetch_mlb() -> list[dict]:
             gt = {"S": "Spring Training", "E": "Exhibition", "F": "Wild Card", "D": "Division Series",
                   "L": "LCS", "W": "World Series", "A": "All-Star Game"}.get(g.get("gameType"), "MLB")
             out.append(event(start, "MLB", gt, f"{at} @ {ht}", ["MLB.tv"], "mlb",
+                             link=f"https://www.mlb.com/tv/g{g['gamePk']}",
                              teams=[[at.split()[-1], at], [ht.split()[-1], ht]]))
     log(f"mlb: {len(out)}")
     return out
