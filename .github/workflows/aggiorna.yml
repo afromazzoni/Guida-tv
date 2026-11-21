@@ -3,7 +3,7 @@ name: Aggiorna Guida Sport
 on:
   schedule:
     - cron: "0 11 * * *"   # 12:00 ora italiana d'inverno (13:00 con l'ora legale)
-  workflow_dispatch:        # avvio manuale dalla scheda Actions
+  workflow_dispatch:        # avvio manuale dalla scheda Actions (Run workflow)
   push:
     branches: [main]
     paths: ["guida_sport.py", "site/guida-sport.html", ".github/workflows/aggiorna.yml"]
