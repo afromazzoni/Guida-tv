@@ -50,8 +50,8 @@
 "url": "/it/it/sport/2026-11-21/445f531b-56ef-5d80-b918-58026fb32287"
 },
 "bf69416f-6a0d-574f-af95-ecd2851f2d20": {
-"start": "2026-11-21T13:57:00Z",
-"end": "2026-11-21T15:20:00Z",
+"start": "2026-11-21T13:56:59Z",
+"end": "2026-11-21T15:19:59Z",
 "title": "Lokeren | Prova maschile",
 "short": "HG Cross",
 "sport": "Ciclo-Cross",
@@ -172,7 +172,7 @@
 "20fd50e9-835d-5c0e-91c1-d46c880e5ae6": {
 "start": "2026-11-21T19:30:00Z",
 "end": "2026-11-21T22:30:00Z",
-"title": "Snooker",
+"title": "Wang Xinbo - Hammad Miah",
 "short": "UK Championship | Qualificazioni",
 "sport": "Snooker",
 "league": "UK Championship",
@@ -211,7 +211,7 @@
 },
 "f2013008-e912-54e2-9c7b-d22c6f6da39a": {
 "start": "2026-11-22T05:00:00Z",
-"end": "2026-11-22T08:52:00Z",
+"end": "2026-11-22T09:00:00Z",
 "title": "Seoul | 2a giornata",
 "short": "World Tour",
 "sport": "Short Track",
@@ -318,5 +318,45 @@
 "league": "Verona",
 "summary": "Telecronaca Leo. La Global Champions League torna in Italia con gli impianti di Veronafiere protagonisti con i migliori binomi del mondo dal 19 al 22 novembre per le Finals 2026.",
 "url": "/it/it/sport/2026-11-22/6ae11584-a005-5344-8982-1d98159a07ca"
+},
+"8cff4211-01ea-55ff-a3ef-c85a592a7ca1": {
+"start": "2026-11-22T13:25:00Z",
+"end": "2026-11-22T14:30:00Z",
+"title": "Lillehammer | HS140 uomini | Qualificazioni",
+"short": "2a giornata | Coppa del Mondo",
+"sport": "Salto con sci",
+"league": "Lillehammer",
+"summary": "Telecronaca Paone Casati-Ambesi. Da Lillehammer alle finali di Planica, passando per il Gross-Titlis-Schanze e i Quattro Trampolini, occhi puntati sulla 49ª stagione di Coppa del Mondo di salto.",
+"url": "/it/it/sport/2026-11-22/8cff4211-01ea-55ff-a3ef-c85a592a7ca1"
+},
+"35573fec-e006-5b9d-ac38-60fbe247ceb8": {
+"start": "2026-11-22T13:57:00Z",
+"end": "2026-11-22T15:20:00Z",
+"title": "Beringen | Prova maschile",
+"short": "X2O Badkamers Trofee",
+"sport": "Ciclo-Cross",
+"league": "Beringen",
+"summary": "Telecronaca Panchetti-Lazzaro. Lo spettacolo del Ciclo-Cross torna con l'appuntamento valido per l'X2O Badkamers Trofee. Otto tappe per un solo vincitore finale.",
+"url": "/it/it/sport/2026-11-22/35573fec-e006-5b9d-ac38-60fbe247ceb8"
+},
+"d8da3347-70e5-51a1-aeac-5de5213d7dd9": {
+"start": "2026-11-22T14:30:00Z",
+"end": "2026-11-22T17:30:00Z",
+"title": "Snooker",
+"short": "UK Championship | Qualificazioni",
+"sport": "Snooker",
+"league": "UK Championship",
+"summary": "Dal 21 al 26 novembre alla Mattioli Arena di Leicester ci si gioca l'accesso allo UK Championship con 16 giocatori a caccia di un posto nel tabellone principale.",
+"url": "/it/it/sport/2026-11-22/d8da3347-70e5-51a1-aeac-5de5213d7dd9"
+},
+"d98dfeab-14b4-533f-9268-88b7b91cefe7": {
+"start": "2026-11-22T14:30:00Z",
+"end": "2026-11-22T17:30:00Z",
+"title": "Snooker",
+"short": "UK Championship | Qualificazioni",
+"sport": "Snooker",
+"league": "UK Championship",
+"summary": "Dal 21 al 26 novembre alla Mattioli Arena di Leicester ci si gioca l'accesso allo UK Championship con 16 giocatori a caccia di un posto nel tabellone principale.",
+"url": "/it/it/sport/2026-11-22/d98dfeab-14b4-533f-9268-88b7b91cefe7"
 }
 }
