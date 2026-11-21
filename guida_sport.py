@@ -58,6 +58,8 @@ def provider(ch: str) -> str:
     c = ch.lower()
     if "eurosport" in c or "hbo" in c or "discovery" in c:
         return "hbo"
+    if "netflix" in c:
+        return "netflix"
     if "dazn" in c or "game pass" in c:
         return "dazn"
     if "prime" in c or "amazon" in c:
@@ -87,14 +89,24 @@ def norm_channel(ch: str) -> str:
 # ----------------------------------------------------------------------------- sport
 def sport_from(sport: str, comp: str = "", title: str = "", extra: str = "") -> str:
     s, blob = sport.lower(), f"{comp} {title} {extra}".lower()
+    if re.search(r"ncaa football|college football", blob):
+        return "College Football"
+    if re.search(r"\bufc\b", blob):
+        return "UFC"
+    if re.search(r"\bwwe\b|wrestling", blob) or s == "wrestling":
+        return "WWE"
     if "nba" in blob.split() or re.search(r"\bnba\b", blob):
         return "NBA"
-    if re.search(r"\bnfl\b", blob) or "football americano" in s and "college" not in blob:
+    if re.search(r"\bnfl\b", blob):
         return "NFL"
     if re.search(r"\bnhl\b", blob):
         return "NHL"
-    if re.search(r"\bmlb\b", blob) or s == "baseball":
+    if re.search(r"\bmlb\b", blob) or s == "baseball" and re.search(r"spring training|world series", blob):
         return "MLB"
+    if s == "baseball":
+        return "Baseball"
+    if "football americano" in s:
+        return "Football americano"
     if "college" in blob and "football" in blob:
         return "College Football"
     if re.search(r"motogp|moto ?2\b|moto ?3\b|moto-e|motoe", blob) or s in ("motogp", "motomondiale", "motociclismo"):
@@ -113,7 +125,8 @@ def sport_from(sport: str, comp: str = "", title: str = "", extra: str = "") -> 
          "wrestling": "Combattimento", "snooker": "Snooker", "freccette": "Freccette", "darts": "Freccette",
          "nuoto": "Nuoto", "atletica": "Atletica", "atletica leggera": "Atletica", "hockey": "Hockey",
          "hockey su ghiaccio": "Hockey", "pallamano": "Pallamano", "padel": "Padel", "equitazione": "Equitazione",
-         "football americano": "NFL", "baseball": "MLB", "scherma": "Scherma", "badminton": "Altro",
+         "curling": "Sport invernali", "short track": "Sport invernali", "kickboxing": "Combattimento",
+         "bare knuckle": "Combattimento", "altri": "Altro", "scherma": "Scherma", "badminton": "Altro",
          "tennistavolo": "Altro", "pallanuoto": "Pallanuoto", "vela": "Vela", "ippica": "Equitazione"}
     if s in m:
         return m[s]
@@ -411,7 +424,8 @@ def fetch_espn() -> list[dict]:
                 chans = ["Disney+"]
             ht, at = teams["home"], teams["away"]
             title = f"{at.get('displayName')} @ {ht.get('displayName')}"
-            nick = [t.get("name") or t.get("shortDisplayName") or "" for t in (at, ht)]
+            nick = [[x for x in {t.get("name"), t.get("location"), t.get("shortDisplayName")} if x and len(x) >= 3]
+                    for t in (at, ht)]
             week = (e.get("week") or {}).get("number")
             cmp = comp_default + (f" · Week {week}" if week and label in ("NFL", "College Football") else "")
             notes = [x.get("headline") for x in comp.get("notes", []) if x.get("headline")]
@@ -419,8 +433,7 @@ def fetch_espn() -> list[dict]:
                 h = notes[0]
                 cmp = "NBA Cup" if "NBA Cup" in h else cmp + " · " + h
             state = e.get("status", {}).get("type", {}).get("state")
-            out.append(event(start, label, cmp, title, chans, "espn", us=us,
-                             teams=[t for t in nick if t], state=state))
+            out.append(event(start, label, cmp, title, chans, "espn", us=us, teams=nick, state=state))
             n += 1
         log(f"espn {label}: {n}")
     return out
@@ -439,9 +452,128 @@ def fetch_mlb() -> list[dict]:
             gt = {"S": "Spring Training", "E": "Exhibition", "F": "Wild Card", "D": "Division Series",
                   "L": "LCS", "W": "World Series", "A": "All-Star Game"}.get(g.get("gameType"), "MLB")
             out.append(event(start, "MLB", gt, f"{at} @ {ht}", ["MLB.tv"], "mlb",
-                             teams=[at.split()[-1], ht.split()[-1]]))
+                             teams=[[at.split()[-1], at], [ht.split()[-1], ht]]))
     log(f"mlb: {len(out)}")
     return out
+
+
+# ----------------------------------------------------------------------------- DAZN
+DAZN_SKIP_COMP = re.compile(r"(?i)radio tv serie a|debrief|magazine")
+
+
+def fetch_dazn() -> list[dict]:
+    out, seen = [], set()
+    for d in range(DAYS):
+        day = TODAY + timedelta(days=d)
+        off = int(datetime(day.year, day.month, day.day, 12, tzinfo=ROME).utcoffset().total_seconds() // 60)
+        try:
+            j = get(f"https://epg.discovery.indazn.com/eu/v5/Epg?date={day}&country=it&languageCode=it"
+                    f"&openBrowse=true&timeZoneOffset={off}").json()
+        except Exception as ex:
+            WARN.append(f"DAZN {day}: {ex}")
+            continue
+        for t in j.get("Tiles", []):
+            title = (t.get("Title") or "").strip()
+            comp = ((t.get("Competition") or {}).get("Title") or "").strip()
+            sport = ((t.get("Sport") or {}).get("Title") or "").strip()
+            if not title or not t.get("Start") or t.get("EventId") in seen:
+                continue
+            seen.add(t.get("EventId"))
+            if DAZN_SKIP_COMP.search(comp) or SKY_SHOWS.search(title) or re.search(r"(?i)after hours|\bep\.", title):
+                continue
+            if "," in title and "@" in title:  # multi-partita (MultiView): già presenti le singole
+                continue
+            start = datetime.fromisoformat(t["Start"].replace("Z", "+00:00"))
+            if not in_window(start):
+                continue
+            title = re.sub(r"\s+vs\.?\s+", " - ", title)
+            if comp.lower() in ("nfl game pass",):
+                comp = "NFL"
+            sp = sport_from(sport, comp, title)
+            out.append(event(start, sp, comp, title, ["DAZN"], "dazn"))
+    log(f"dazn: {len(out)}")
+    return out
+
+
+# ----------------------------------------------------------------------------- UFC (calendario ESPN, in Italia su HBO Max)
+def fetch_ufc() -> list[dict]:
+    out, seen = [], set()
+    for d in range(-1, DAYS + 1):
+        day = (TODAY + timedelta(days=d)).strftime("%Y%m%d")
+        try:
+            j = get(f"https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?dates={day}").json()
+        except Exception as ex:
+            WARN.append(f"ESPN UFC {day}: {ex}")
+            continue
+        for e in j.get("events", []):
+            if e["id"] in seen:
+                continue
+            seen.add(e["id"])
+            comps = e.get("competitions") or []
+            start = datetime.fromisoformat(e["date"].replace("Z", "+00:00"))
+            if not in_window(start):
+                continue
+            last = comps[-1].get("date") if comps else None
+            end = (datetime.fromisoformat(last.replace("Z", "+00:00")) if last else start + timedelta(hours=3)) + timedelta(minutes=40)
+            name = e.get("name") or "UFC"
+            m = re.match(r"(.*?):\s*(.+)", name)
+            comp, title = (m.group(1), m.group(2)) if m else ("UFC", name)
+            out.append(event(start, "UFC", comp, title, ["HBO Max"], "espn",
+                             end=end.astimezone(ROME).isoformat(timespec="minutes"),
+                             desc="Orario d'inizio delle prelims; il main card parte più tardi."))
+    log(f"ufc: {len(out)}")
+    return out
+
+
+# ----------------------------------------------------------------------------- WWE su Netflix (show settimanali, ora di New York)
+WWE_SHOWS = [  # (giorno della settimana a New York, ora, nome, durata in minuti)
+    (0, 20, "Monday Night Raw", 180),
+    (1, 20, "NXT", 120),
+    (4, 20, "Friday Night SmackDown", 120),
+]
+
+
+def fetch_wwe() -> list[dict]:
+    ny = ZoneInfo("America/New_York")
+    out = []
+    for d in range(-1, DAYS + 1):
+        day = TODAY + timedelta(days=d)
+        for wd, hour, name, dur in WWE_SHOWS:
+            if day.weekday() != wd:
+                continue
+            start = datetime(day.year, day.month, day.day, hour, tzinfo=ny)
+            if not in_window(start):
+                continue
+            out.append(event(start, "WWE", "WWE", name, ["Netflix"], "wwe",
+                             end=(start + timedelta(minutes=dur)).astimezone(ROME).isoformat(timespec="minutes"),
+                             desc="Show settimanale in diretta su Netflix. I premium live event non sono ancora inclusi."))
+    log(f"wwe: {len(out)}")
+    return out
+
+
+# ----------------------------------------------------------------------------- classificazione finale calcio / basket
+FOOTBALL_MAJOR = re.compile(r"""(?ix)
+    ^serie\ a(\ enilive)?$ | ^serie\ (b|c)\b | ^serie\ bkt | coppa\ italia(?!.*(primavera|serie\ c|femminile|women))
+  | supercoppa\ italiana | ^premier\ league$ | championship | fa\ cup | efl\ cup | carabao
+  | ^liga$ | ^la\ ?liga(\ ea\ sports)?$ | copa\ del\ rey | supercopa | ^bundesliga$ | dfb | ^ligue\ 1(\ mcdonald'?s)?$
+  | coupe\ de\ france | champions\ league | europa\ league | conference\ league | supercoppa\ europea | uefa\ super\ cup
+  | nations\ league | qualificazioni\ (mondiali|europei) | world\ cup\ qualif | mondiali(?!\ u\d) | europei(?!\ u\d)
+  | amichevol.*italia | ^nazionali$""")
+FOOTBALL_NOT = re.compile(r"(?i)women|femminil|primavera|\bu\d{2}\b|youth|giovanil|\bcaf\b|\bafc\b|concacaf|conmebol| - [A-Z]")
+BASKET_ITA = re.compile(r"(?i)^serie a\b|serie a2|^a2\b|\blba\b|lega basket|unipol|eurolega|euroleague|eurocup|"
+                        r"coppa italia|supercoppa|italbasket|nazionale")
+
+
+def refine(e: dict):
+    comp = e["comp"]
+    if e["sport"] == "Calcio":
+        if comp and (FOOTBALL_NOT.search(comp) or not FOOTBALL_MAJOR.search(comp)):
+            e["sport"] = "Calcio dal mondo"
+    elif e["sport"] == "Basket":
+        ita = BASKET_ITA.search(comp) or re.search(r"\bItalia\b", e["title"])
+        if not comp and "sky" in e["src"]:  # sul canale Sky Sport Basket senza competizione: LBA o Eurolega
+            ita = ita or not re.search(r"(?i)world cup|fiba|qualificazioni", e.get("desc", ""))
+        e["sport"] = "Basket italiano" if ita else "Basket"
 
 
 # ----------------------------------------------------------------------------- HBO Max / Eurosport
@@ -496,8 +628,8 @@ def fetch_hbo() -> list[dict]:
 # ----------------------------------------------------------------------------- unione
 def build() -> dict:
     sources = {}
-    for name, fn in [("virgilio", fetch_virgilio), ("sky", fetch_sky), ("espn", fetch_espn),
-                     ("mlb", fetch_mlb), ("hbo", fetch_hbo)]:
+    for name, fn in [("virgilio", fetch_virgilio), ("sky", fetch_sky), ("dazn", fetch_dazn), ("espn", fetch_espn),
+                     ("mlb", fetch_mlb), ("ufc", fetch_ufc), ("wwe", fetch_wwe), ("hbo", fetch_hbo)]:
         try:
             sources[name] = fn()
         except Exception as ex:
@@ -517,11 +649,24 @@ def build() -> dict:
         else:
             events.append(e)
 
+    # DAZN: aggiunge il canale agli eventi già noti o inserisce quelli nuovi
+    for e in sources["dazn"]:
+        m = find_match(e, events, tol=20)
+        if m:
+            merge_into(m, e)
+        else:
+            events.append(e)
+
     # Sport USA: l'evento ESPN/MLB diventa quello di riferimento, assorbendo i duplicati
     for e in sources["espn"] + sources["mlb"]:
-        nick = [n.lower() for n in e.get("teams", [])]
-        dup = [p for p in events if minutes_apart(e, p) <= 90 and nick
-               and all(n in (p["title"] + " " + p.get("desc", "")).lower() for n in nick)]
+        teams = [[a.lower() for a in t] for t in e.get("teams", [])]
+
+        def same_game(p):
+            txt = (p["title"] + " " + p.get("desc", "")).lower()
+            return all(any(re.search(r"\b" + re.escape(a) + r"\b", txt) for a in t) for t in teams)
+
+        dup = [p for p in events if p["sport"] == e["sport"] or p["sport"] in VAGUE or p["sport"] in ("Basket", "Calcio")]
+        dup = [p for p in dup if teams and minutes_apart(e, p) <= 90 and same_game(p)]
         for p in dup:
             merge_into(e, p)
             if "desc" in p and "desc" not in e:
@@ -530,6 +675,14 @@ def build() -> dict:
         if not e["channels"]:
             e["channels"] = ["Nessun canale in Italia"]
         events.append(e)
+
+    # UFC (ESPN) e WWE (Netflix)
+    for e in sources["ufc"] + sources["wwe"]:
+        m = find_match(e, events, tol=30)
+        if m:
+            merge_into(m, e)
+        else:
+            events.append(e)
 
     # HBO Max / Eurosport
     for e in sources["hbo"]:
@@ -564,6 +717,7 @@ def build() -> dict:
 
     # Eurosport è dentro HBO Max
     for e in events:
+        refine(e)
         if any("eurosport" in c.lower() for c in e["channels"]) and "HBO Max" not in e["channels"]:
             e["channels"].append("HBO Max")
         e["chp"] = [provider(c) if c != "Nessun canale in Italia" else "none" for c in e["channels"]]

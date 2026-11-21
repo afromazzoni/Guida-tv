@@ -16,6 +16,9 @@ Guida TV settimanale dello sport, con filtri per giorno e sport. Nasce perché l
 
 - `guida_sport.py` → `site/events.json`; pagina `site/guida-sport.html` pubblicata su https://claude.ai/artifact/5WqjU2RZWcFdnXov67Qc8V (con `events.json` come file allegato).
 - Fonti aggiunte: EPG Sky `apid.sky.it/gtv/v1` (solo `programHighlights == "L"` = diretta; canali 201–217, 227, 251–259); ESPN scoreboard (NFL, NBA, NHL, college football, una richiesta per giorno, l'intervallo di date dà 400); MLB Stats API; pagina pubblica hbomax.com/it/it/sports (solo ~36 ore, accumulata in `data/hbo_cache.json`).
+- DAZN: `epg.discovery.indazn.com/eu/v5/Epg?date=...&country=it&languageCode=it&openBrowse=true` (pubblico, senza login; ~200 eventi al giorno, niente Eurosport né canali lineari). UFC: calendario ESPN `mma/ufc`, in Italia su HBO Max. WWE: Raw/NXT/SmackDown su Netflix generati da regola (ora di New York).
+- Calcio = Serie A/B/C, big 5 europei + Championship, coppe nazionali ed europee, nazionali; tutto il resto (Primavera, femminile, campionati minori) = "Calcio dal mondo". Basket: "Basket italiano" (LBA, A2, Eurolega, nazionale) vs "Basket".
+- Pagina: riga di sport preferiti modificabile (localStorage) + pannello "Tutti gli sport".
 - Eurosport non è più su Sky; eurosport.it risponde 403. L'API GraphQL di HBO non va usata (bloccata dai permessi).
 - Emittenti: NFL → DAZN (Game Pass); NBA → League Pass (+ Sky se presente); NHL/CFB → Disney+ se la partita è ESPN/ABC negli USA; MLB → MLB.tv; Eurosport → anche HBO Max.
 - `aggiorna.ps1`: script + `claude -p` per ripubblicare; attività pianificata Windows "Guida Sport - aggiornamento" ogni giorno alle 12:00. Log in `data/aggiorna.log`.
